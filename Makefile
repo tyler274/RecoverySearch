@@ -2,7 +2,7 @@
 
 # Run a command inside the root Nix dev shell, whether or not direnv has
 # already activated it in the current terminal.
-NIX := direnv exec . --
+NIX := direnv exec .
 
 ## Run the full CI workflow locally (mirrors what GitHub runs on each push).
 ci:
