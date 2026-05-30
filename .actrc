@@ -1,0 +1,5 @@
+# Use the full ubuntu runner image so actions/setup-node works correctly.
+# Pull once; act caches it afterwards.
+--platform ubuntu-latest=catthehacker/ubuntu:act-latest
+# Forward the host Docker socket so act can build container actions if needed.
+--bind
