@@ -1,0 +1,9 @@
+# Supabase CLI config for RecoverySearch.
+# This project targets an existing self-hosted stack (docker-compose) rather
+# than the CLI-managed local stack, so migrations and type generation are run
+# against the live database via the pooler with `--db-url` (see web/README.md).
+project_id = "recoverysearch"
+
+[db]
+# Postgres major version of the self-hosted stack (supabase/postgres:15.x).
+major_version = 15
