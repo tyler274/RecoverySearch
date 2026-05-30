@@ -1,0 +1,4 @@
+.env
+.env.old
+.env*.local
+volumes/db/data/
