@@ -34,21 +34,29 @@ function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+// FormData.get() returns string | File | null. We only ever want the string
+// value from text inputs; a File entry here would be a caller mistake.
+function formStr(form: FormData, key: string): string {
+  const v = form.get(key);
+  return typeof v === "string" ? v.trim() : "";
+}
+
 function optStr(form: FormData, key: string): string | null {
-  const v = String(form.get(key) ?? "").trim();
+  const v = formStr(form, key);
   return v === "" ? null : v;
 }
 
 function optNum(form: FormData, key: string): number | null {
-  const v = String(form.get(key) ?? "").trim();
+  const v = formStr(form, key);
   if (v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
 
 function parseFacility(form: FormData) {
-  const name = String(form.get("name") ?? "").trim();
-  const slugRaw = String(form.get("slug") ?? "").trim();
+  const name = formStr(form, "name");
+  const slugRaw = formStr(form, "slug");
+  const status = formStr(form, "status") || "draft";
   return facilitySchema.parse({
     name,
     slug: slugRaw || slugify(name),
@@ -64,10 +72,7 @@ function parseFacility(form: FormData) {
     email: optStr(form, "email"),
     website: optStr(form, "website"),
     capacity: optNum(form, "capacity"),
-    status: (String(form.get("status") ?? "draft") || "draft") as
-      | "draft"
-      | "published"
-      | "archived",
+    status: status as "draft" | "published" | "archived",
   });
 }
 
@@ -99,9 +104,9 @@ async function syncRelations(facilityId: string, form: FormData) {
   await supabase.from("facility_policies").delete().eq("facility_id", facilityId);
   const rows = (policyTypes ?? [])
     .map((pt) => {
-      const value = String(form.get(`policy__${pt.id}`) ?? "").trim();
+      const value = formStr(form, `policy__${pt.id}`);
       if (!value) return null;
-      const notes = String(form.get(`note__${pt.id}`) ?? "").trim() || null;
+      const notes = formStr(form, `note__${pt.id}`) || null;
       return { facility_id: facilityId, policy_type_id: pt.id, value, notes };
     })
     .filter((r): r is NonNullable<typeof r> => r !== null);
@@ -120,8 +125,8 @@ export async function createFacility(form: FormData) {
     .select("id")
     .single();
 
-  if (error || !data) {
-    redirect(`/admin/facilities/new?error=${encodeURIComponent(error?.message ?? "Insert failed")}`);
+  if (error) {
+    redirect(`/admin/facilities/new?error=${encodeURIComponent(error.message)}`);
   }
 
   await syncRelations(data.id, form);
@@ -130,7 +135,7 @@ export async function createFacility(form: FormData) {
 }
 
 export async function updateFacility(form: FormData) {
-  const id = String(form.get("id") ?? "");
+  const id = formStr(form, "id");
   if (!id) redirect("/admin");
 
   const supabase = await createClient();
@@ -148,7 +153,7 @@ export async function updateFacility(form: FormData) {
 }
 
 export async function deleteFacility(form: FormData) {
-  const id = String(form.get("id") ?? "");
+  const id = formStr(form, "id");
   if (!id) redirect("/admin");
 
   const supabase = await createClient();

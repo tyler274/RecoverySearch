@@ -11,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default [
   {
     // Auto-generated files — do not lint.
-    ignores: [".next/**", "node_modules/**", "next-env.d.ts"],
+    ignores: [".next/**", "node_modules/**", "next-env.d.ts", "lib/database.types.ts"],
   },
   {
     files: ["**/*.{ts,tsx}"],
@@ -46,6 +46,8 @@ export default [
       ...reactPlugin.configs.recommended.rules,
       ...reactHooksPlugin.configs.recommended.rules,
 
+      // Numbers are always safe to interpolate in template literals.
+      "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
       // Next.js handles React imports automatically.
       "react/react-in-jsx-scope": "off",
       // Prop types are replaced by TypeScript.

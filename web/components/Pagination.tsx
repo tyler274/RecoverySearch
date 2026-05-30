@@ -26,7 +26,7 @@ export default function Pagination({
     <div className="mt-6 flex items-center justify-center gap-3">
       <button
         type="button"
-        onClick={() => goTo(page - 1)}
+        onClick={() => { goTo(page - 1); }}
         disabled={page <= 1}
         className="rounded-md border border-slate-300 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-40"
       >
@@ -37,7 +37,7 @@ export default function Pagination({
       </span>
       <button
         type="button"
-        onClick={() => goTo(page + 1)}
+        onClick={() => { goTo(page + 1); }}
         disabled={page >= pageCount}
         className="rounded-md border border-slate-300 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-40"
       >

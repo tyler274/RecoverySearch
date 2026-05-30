@@ -29,7 +29,7 @@ interface Props {
   policyTypes: PolicyType[];
   selectedAmenityIds: string[];
   selectedTreatmentIds: string[];
-  policyMap: Record<string, { value: string; notes: string | null }>;
+  policyMap: Record<string, { value: string; notes: string | null } | undefined>;
   saved?: boolean;
   error?: string;
 }

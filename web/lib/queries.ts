@@ -47,9 +47,8 @@ export async function runSearch(
     .filter((t) => state.treatments.includes(t.slug))
     .map((t) => t.id);
 
-  const hasGeo = state.lat != null && state.lng != null;
   const sort: SortOption =
-    state.sort === "relevance" && hasGeo ? "distance" : state.sort;
+    state.sort === "relevance" && state.lat !== null ? "distance" : state.sort;
 
   const { data, error } = await supabase.rpc("search_facilities", {
     search_text: state.q || undefined,
@@ -58,9 +57,9 @@ export async function runSearch(
     amenity_ids: amenityIds.length ? amenityIds : undefined,
     treatment_ids: treatmentIds.length ? treatmentIds : undefined,
     policy_keys: state.policies.length ? state.policies : undefined,
-    center_lat: hasGeo ? state.lat! : undefined,
-    center_lng: hasGeo ? state.lng! : undefined,
-    radius_m: hasGeo ? state.radiusKm * 1000 : undefined,
+    center_lat: state.lat !== null ? state.lat : undefined,
+    center_lng: state.lng !== null ? state.lng : undefined,
+    radius_m: state.lat !== null ? state.radiusKm * 1000 : undefined,
     sort,
     page_limit: PAGE_SIZE,
     page_offset: (state.page - 1) * PAGE_SIZE,
@@ -70,7 +69,7 @@ export async function runSearch(
     throw new Error(`Search failed: ${error.message}`);
   }
 
-  const results = (data ?? []) as SearchResult[];
+  const results = data;
   const total = results[0]?.total_count ?? 0;
   return {
     results,
@@ -136,18 +135,12 @@ export async function getFacilityBySlug(
 
   return {
     facility,
-    amenities: (amenities.data ?? [])
-      .map((row) => row.amenities as Amenity)
-      .filter(Boolean),
-    treatments: (treatments.data ?? [])
-      .map((row) => row.treatments as Treatment)
-      .filter(Boolean),
-    policies: (policies.data ?? [])
-      .map((row) => ({
-        policy: row.policy_types as PolicyType,
-        value: row.value,
-        notes: row.notes,
-      }))
-      .filter((p) => p.policy),
+    amenities: (amenities.data ?? []).map((row) => row.amenities),
+    treatments: (treatments.data ?? []).map((row) => row.treatments),
+    policies: (policies.data ?? []).map((row) => ({
+      policy: row.policy_types,
+      value: row.value,
+      notes: row.notes,
+    })),
   };
 }

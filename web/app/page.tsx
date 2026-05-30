@@ -20,15 +20,13 @@ export default async function SearchPage({
   const facets = await getFacets();
   const { results, total, page, pageCount } = await runSearch(state, facets);
 
-  const markers: MapMarker[] = results
-    .filter((r) => r.latitude != null && r.longitude != null)
-    .map((r) => ({
-      id: r.id,
-      slug: r.slug,
-      name: r.name,
-      lat: r.latitude as number,
-      lng: r.longitude as number,
-    }));
+  const markers: MapMarker[] = results.map((r) => ({
+    id: r.id,
+    slug: r.slug,
+    name: r.name,
+    lat: r.latitude,
+    lng: r.longitude,
+  }));
 
   const center =
     state.lat != null && state.lng != null

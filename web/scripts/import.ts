@@ -41,10 +41,13 @@ const supabase = createClient<Database>(SUPABASE_URL, SERVICE_KEY, {
 const GEOCACHE_PATH = resolve("data/.geocache.json");
 const geocache: Record<string, { lat: number; lng: number } | null> =
   existsSync(GEOCACHE_PATH)
-    ? JSON.parse(readFileSync(GEOCACHE_PATH, "utf8"))
+    ? (JSON.parse(readFileSync(GEOCACHE_PATH, "utf8")) as Record<string, { lat: number; lng: number } | null>)
     : {};
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) =>
+  new Promise<void>((r) => {
+    setTimeout(r, ms);
+  });
 
 function slugify(input: string): string {
   return input
@@ -54,7 +57,7 @@ function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function splitList(value: string | undefined): string[] {
+function splitList(value: string): string[] {
   if (!value) return [];
   return value
     .split(/[|;]/)
@@ -62,13 +65,17 @@ function splitList(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
+// str() safely reads a string column from a CSV row (Record<string, string>).
+// csv-parse always returns strings for all columns so the index access is safe.
+function str(row: Record<string, string>, key: string): string {
+  return row[key].trim();
+}
+
 async function geocode(query: string): Promise<{ lat: number; lng: number } | null> {
   if (query in geocache) return geocache[query];
   // Nominatim usage policy: max 1 request/second, descriptive User-Agent.
   await sleep(1100);
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
-    query,
-  )}`;
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": "RecoverySearch/0.1 (import script)" },
@@ -80,8 +87,9 @@ async function geocode(query: string): Promise<{ lat: number; lng: number } | nu
     geocache[query] = hit;
     writeFileSync(GEOCACHE_PATH, JSON.stringify(geocache, null, 2));
     return hit;
-  } catch (err) {
-    console.warn(`  geocode failed for "${query}": ${(err as Error).message}`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`  geocode failed for "${query}": ${message}`);
     return null;
   }
 }
@@ -91,11 +99,11 @@ async function loadLookup(
 ): Promise<Map<string, string>> {
   const { data, error } = await supabase.from(table).select("id, slug");
   if (error) throw error;
-  return new Map((data ?? []).map((r) => [r.slug, r.id]));
+  return new Map(data.map((r) => [r.slug, r.id]));
 }
 
 async function main() {
-  const file = process.argv[2] ?? "data/sample-facilities.csv";
+  const file = process.argv[2] || "data/sample-facilities.csv";
   const path = resolve(file);
   if (!existsSync(path)) {
     console.error(`File not found: ${path}`);
@@ -121,18 +129,18 @@ async function main() {
   let failed = 0;
 
   for (const row of rows) {
-    const name = row.name?.trim();
+    const name = str(row, "name");
     if (!name) {
       console.warn("  skipping row with no name");
       continue;
     }
-    const slug = row.slug?.trim() || slugify(name);
+    const slug = str(row, "slug") || slugify(name);
 
-    let lat = row.latitude ? Number(row.latitude) : null;
-    let lng = row.longitude ? Number(row.longitude) : null;
+    let lat = row["latitude"] ? Number(row["latitude"]) : null;
+    let lng = row["longitude"] ? Number(row["longitude"]) : null;
 
-    if ((lat == null || Number.isNaN(lat)) && row.address) {
-      const query = [row.address, row.city, row.region, row.postal_code, row.country]
+    if ((lat == null || Number.isNaN(lat)) && row["address"]) {
+      const query = [row["address"], row["city"], row["region"], row["postal_code"], row["country"]]
         .filter(Boolean)
         .join(", ");
       const geo = await geocode(query);
@@ -143,22 +151,22 @@ async function main() {
     }
 
     const facilityRow: Database["public"]["Tables"]["facilities"]["Insert"] = {
-      external_id: row.external_id?.trim() || null,
+      external_id: str(row, "external_id") || null,
       slug,
       name,
-      description: row.description?.trim() || null,
-      address: row.address?.trim() || null,
-      city: row.city?.trim() || null,
-      region: row.region?.trim() || null,
-      country: row.country?.trim() || "USA",
-      postal_code: row.postal_code?.trim() || null,
+      description: str(row, "description") || null,
+      address: str(row, "address") || null,
+      city: str(row, "city") || null,
+      region: str(row, "region") || null,
+      country: str(row, "country") || "USA",
+      postal_code: str(row, "postal_code") || null,
       latitude: lat,
       longitude: lng,
-      phone: row.phone?.trim() || null,
-      email: row.email?.trim() || null,
-      website: row.website?.trim() || null,
-      capacity: row.capacity ? Number(row.capacity) : null,
-      status: (row.status?.trim() as "draft" | "published" | "archived") || "published",
+      phone: str(row, "phone") || null,
+      email: str(row, "email") || null,
+      website: str(row, "website") || null,
+      capacity: row["capacity"] ? Number(row["capacity"]) : null,
+      status: str(row, "status") || "published",
     };
 
     const { data: upserted, error } = await supabase
@@ -167,18 +175,18 @@ async function main() {
       .select("id")
       .single();
 
-    if (error || !upserted) {
-      console.error(`  ✗ ${name}: ${error?.message}`);
+    if (error !== null) {
+      console.error(`  ✗ ${name}: ${error.message}`);
       failed++;
       continue;
     }
 
     const facilityId = upserted.id;
 
-    const amenityIds = splitList(row.amenities)
+    const amenityIds = splitList(row["amenities"] ?? "")
       .map((s) => amenityMap.get(s))
       .filter((v): v is string => Boolean(v));
-    const treatmentIds = splitList(row.treatments)
+    const treatmentIds = splitList(row["treatments"] ?? "")
       .map((s) => treatmentMap.get(s))
       .filter((v): v is string => Boolean(v));
 
@@ -198,9 +206,12 @@ async function main() {
         );
     }
 
-    const policyRows = splitList(row.policies)
+    const policyRows = splitList(row["policies"] ?? "")
       .map((pair) => {
-        const [key, value] = pair.split("=").map((s) => s.trim());
+        const eqIdx = pair.indexOf("=");
+        if (eqIdx < 0) return null;
+        const key = pair.slice(0, eqIdx).trim();
+        const value = pair.slice(eqIdx + 1).trim();
         const policy_type_id = policyMap.get(key);
         if (!policy_type_id || !value) return null;
         return { facility_id: facilityId, policy_type_id, value };
@@ -212,16 +223,16 @@ async function main() {
       await supabase.from("facility_policies").insert(policyRows);
     }
 
-    console.log(
-      `  ✓ ${name}${lat != null ? ` (${lat.toFixed(4)}, ${lng?.toFixed(4)})` : " (no coords)"}`,
-    );
+    const coords =
+      lat !== null ? ` (${lat.toFixed(4)}, ${lng !== null ? lng.toFixed(4) : "?"})` : " (no coords)";
+    console.log(`  ✓ ${name}${coords}`);
     ok++;
   }
 
   console.log(`\nDone. ${ok} imported, ${failed} failed.`);
 }
 
-main().catch((err) => {
+main().catch((err: unknown) => {
   console.error(err);
   process.exit(1);
 });

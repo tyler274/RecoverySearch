@@ -32,7 +32,7 @@ export default function FacilityCard({ facility }: { facility: SearchResult }) {
         </p>
       )}
       <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-        {facility.capacity != null && (
+        {facility.capacity > 0 && (
           <span className="rounded bg-slate-100 px-2 py-0.5">
             {facility.capacity} beds
           </span>
