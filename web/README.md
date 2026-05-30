@@ -11,6 +11,8 @@ runs on top of the self-hosted Supabase stack in the repository root.
 - **Import**: a CSV bulk-import script that geocodes addresses (Nominatim) and
   upserts via the service-role key.
 
+![RecoverySearch facility search UI](../demo_images/image.png)
+
 ## Architecture
 
 | Concern | Choice |
