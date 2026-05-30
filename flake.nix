@@ -17,6 +17,7 @@
             git
             git-filter-repo
             act
+            nodejs_22
           ];
 
           shellHook = ''

@@ -1,0 +1,10 @@
+{
+  "name": "recoverysearch",
+  "private": true,
+  "scripts": {
+    "check": "npm --prefix web run check",
+    "ci": "act push --workflows .github/workflows/ci.yml --container-options \"-v /tmp/act-run:/var/run\"",
+    "ci:list": "act push --workflows .github/workflows/ci.yml --list",
+    "ci:job": "act push --workflows .github/workflows/ci.yml --job"
+  }
+}

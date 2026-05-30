@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run lint && npm run build",
     "import": "tsx scripts/import.ts",
     "db:push": "supabase db push --db-url \"$SUPABASE_DB_URL\"",
     "db:diff": "supabase db diff --db-url \"$SUPABASE_DB_URL\"",
