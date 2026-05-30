@@ -12,6 +12,9 @@ interactive map powered by PostGIS geographic search.
   facilities, admin access, and project layout.
 - **[Supabase / Docker setup →](SUPABASE.md)** — Self-hosted Supabase stack
   (Docker Compose) that the app runs on top of.
+- **[Cloud deployment (Terraform) →](infra/README.md)** — Multi-cloud
+  (Azure / AWS / GCP) deploy of the app + Supabase stack, with Vault, Doppler,
+  or cloud-native secrets.
 
 ## Tech stack
 

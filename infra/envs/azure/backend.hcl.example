@@ -1,0 +1,7 @@
+# Remote state for the Azure environment. Uncomment the `backend "azurerm" {}`
+# block in versions.tf, then:
+#   terraform init -backend-config=backend.hcl
+resource_group_name  = "tfstate-rg"
+storage_account_name = "recoverysearchtfstate"
+container_name       = "tfstate"
+key                  = "azure.terraform.tfstate"

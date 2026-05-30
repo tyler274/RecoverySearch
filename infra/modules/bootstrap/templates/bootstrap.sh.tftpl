@@ -1,0 +1,282 @@
+#!/usr/bin/env bash
+# RecoverySearch VM bootstrap (portable: Azure custom_data / AWS user_data / GCP startup-script).
+# Installs Docker, mounts the persistent disk, fetches secrets from the chosen
+# backend, assembles .env, and brings up the self-hosted Supabase stack + app.
+#
+# NOTE: secret values are never printed (no `set -x`).
+set -euo pipefail
+
+LOG=/var/log/recoverysearch-bootstrap.log
+echo "[bootstrap] starting $(date -u)" | tee -a "$LOG"
+
+APP_DIR="${app_dir}"
+DATA_DEVICE="${data_device}"
+SECRETS_FILE="$(mktemp /run/recoverysearch.secrets.XXXXXX.env)"
+chmod 600 "$SECRETS_FILE"
+
+log() { echo "[bootstrap] $*" | tee -a "$LOG"; }
+
+# ---------------------------------------------------------------------------
+# 1. Base packages + Docker Engine (+ compose plugin)
+# ---------------------------------------------------------------------------
+install_base() {
+  export DEBIAN_FRONTEND=noninteractive
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -y
+    apt-get install -y ca-certificates curl git jq openssl unzip gnupg
+  fi
+  if ! command -v docker >/dev/null 2>&1; then
+    curl -fsSL https://get.docker.com | sh
+  fi
+  systemctl enable --now docker
+}
+
+# ---------------------------------------------------------------------------
+# 2. Persistent data disk -> APP_DIR (idempotent)
+# ---------------------------------------------------------------------------
+mount_data_disk() {
+  if [ -n "$DATA_DEVICE" ]; then
+    log "preparing data disk $DATA_DEVICE"
+    # Wait for the device to appear (cloud attach can lag boot).
+    for _ in $(seq 1 30); do [ -b "$DATA_DEVICE" ] && break; sleep 2; done
+    if ! blkid "$DATA_DEVICE" >/dev/null 2>&1; then
+      mkfs.ext4 -F "$DATA_DEVICE"
+    fi
+    mkdir -p "$APP_DIR"
+    if ! grep -q "$APP_DIR" /etc/fstab; then
+      echo "$DATA_DEVICE $APP_DIR ext4 defaults,nofail 0 2" >> /etc/fstab
+    fi
+    mount -a
+  else
+    mkdir -p "$APP_DIR"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# 3. Repo onto the persistent disk
+# ---------------------------------------------------------------------------
+clone_repo() {
+  if [ ! -d "$APP_DIR/.git" ]; then
+    log "cloning ${app_repo_url} (${app_repo_ref})"
+    git clone --branch "${app_repo_ref}" "${app_repo_url}" "$APP_DIR"
+  else
+    log "repo present; updating to ${app_repo_ref}"
+    git -C "$APP_DIR" fetch --all --quiet || true
+    git -C "$APP_DIR" checkout "${app_repo_ref}" || true
+    git -C "$APP_DIR" pull --ff-only || true
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# 4. Fetch secrets -> $SECRETS_FILE (KEY=VALUE lines)
+# ---------------------------------------------------------------------------
+fetch_vault() {
+  log "fetching secrets from Vault via AppRole"
+  local addr="${vault_address}" token resp
+  resp=$(curl -fsS --request POST \
+    --data "{\"role_id\":\"${vault_role_id}\",\"secret_id\":\"${vault_secret_id}\"}" \
+    "$addr/v1/auth/${vault_approle_path}/login")
+  token=$(printf '%s' "$resp" | jq -r '.auth.client_token')
+  curl -fsS -H "X-Vault-Token: $token" \
+    "$addr/v1/${vault_kv_mount}/data/${vault_secret_path}" \
+    | jq -r '.data.data | to_entries[] | "\(.key)=\(.value)"' > "$SECRETS_FILE"
+}
+
+fetch_doppler() {
+  log "fetching secrets from Doppler"
+  if ! command -v doppler >/dev/null 2>&1; then
+    curl -fsS https://cli.doppler.com/install.sh | sh
+  fi
+  DOPPLER_TOKEN="${doppler_token}" doppler secrets download --no-file --format json \
+    | jq -r 'to_entries[] | "\(.key)=\(.value)"' > "$SECRETS_FILE"
+}
+
+fetch_cloud_native() {
+  log "fetching secrets from cloud-native store (${cn_provider})"
+  case "${cn_provider}" in
+    azure)
+      if ! command -v az >/dev/null 2>&1; then
+        curl -fsSL https://aka.ms/InstallAzureCLIDeb | bash
+      fi
+      az login --identity >/dev/null
+      az keyvault secret show --vault-name "${cn_azure_vault}" --name "${cn_secret_name}" \
+        --query value -o tsv \
+        | jq -r 'to_entries[] | "\(.key)=\(.value)"' > "$SECRETS_FILE"
+      ;;
+    aws)
+      if ! command -v aws >/dev/null 2>&1; then
+        curl -fsS "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscli.zip
+        unzip -q /tmp/awscli.zip -d /tmp && /tmp/aws/install
+      fi
+      aws secretsmanager get-secret-value --secret-id "${cn_secret_name}" --region "${cn_region}" \
+        --query SecretString --output text \
+        | jq -r 'to_entries[] | "\(.key)=\(.value)"' > "$SECRETS_FILE"
+      ;;
+    gcp)
+      gcloud secrets versions access latest --secret="${cn_secret_name}" --project="${cn_gcp_project}" \
+        | jq -r 'to_entries[] | "\(.key)=\(.value)"' > "$SECRETS_FILE"
+      ;;
+    *)
+      echo "[bootstrap] unknown cloud_native provider: ${cn_provider}" >&2
+      exit 1
+      ;;
+  esac
+}
+
+fetch_secrets() {
+  case "${secrets_backend}" in
+    vault) fetch_vault ;;
+    doppler) fetch_doppler ;;
+    cloud_native) fetch_cloud_native ;;
+    *) echo "[bootstrap] unknown secrets_backend: ${secrets_backend}" >&2; exit 1 ;;
+  esac
+}
+
+# Retry to ride out transient backend errors and cloud IAM propagation delays.
+fetch_with_retry() {
+  local n=0
+  until [ "$n" -ge 12 ]; do
+    if fetch_secrets && [ -s "$SECRETS_FILE" ]; then return 0; fi
+    n=$((n + 1))
+    log "secret fetch attempt $n failed; retrying in 15s"
+    sleep 15
+  done
+  echo "[bootstrap] giving up fetching secrets after $n attempts" >&2
+  return 1
+}
+
+# ---------------------------------------------------------------------------
+# 5. Assemble .env (mint ANON_KEY / SERVICE_ROLE_KEY from JWT_SECRET)
+# ---------------------------------------------------------------------------
+b64url() { openssl base64 -e -A | tr '+/' '-_' | tr -d '='; }
+
+mint_jwt() {
+  local role="$1" header payload sig now exp
+  header=$(printf '%s' '{"alg":"HS256","typ":"JWT"}' | b64url)
+  now=$(date +%s); exp=$((now + 315360000)) # ~10 years
+  payload=$(printf '{"role":"%s","iss":"supabase","iat":%s,"exp":%s}' "$role" "$now" "$exp" | b64url)
+  sig=$(printf '%s.%s' "$header" "$payload" | openssl dgst -binary -sha256 -hmac "$JWT_SECRET" | b64url)
+  printf '%s.%s.%s' "$header" "$payload" "$sig"
+}
+
+write_env() {
+  set -a
+  # shellcheck disable=SC1090
+  . "$SECRETS_FILE"
+  set +a
+
+  : "$${JWT_SECRET:?JWT_SECRET missing from fetched secrets}"
+  ANON_KEY=$(mint_jwt anon)
+  SERVICE_ROLE_KEY=$(mint_jwt service_role)
+
+  log "writing $APP_DIR/.env"
+  umask 077
+  cat > "$APP_DIR/.env" <<EOF
+############ Secrets ############
+POSTGRES_PASSWORD=$${POSTGRES_PASSWORD}
+JWT_SECRET=$${JWT_SECRET}
+ANON_KEY=$${ANON_KEY}
+SERVICE_ROLE_KEY=$${SERVICE_ROLE_KEY}
+SECRET_KEY_BASE=$${SECRET_KEY_BASE}
+VAULT_ENC_KEY=$${VAULT_ENC_KEY}
+PG_META_CRYPTO_KEY=$${PG_META_CRYPTO_KEY}
+DASHBOARD_USERNAME=$${DASHBOARD_USERNAME}
+DASHBOARD_PASSWORD=$${DASHBOARD_PASSWORD}
+LOGFLARE_PUBLIC_ACCESS_TOKEN=$${LOGFLARE_PUBLIC_ACCESS_TOKEN}
+LOGFLARE_PRIVATE_ACCESS_TOKEN=$${LOGFLARE_PRIVATE_ACCESS_TOKEN}
+S3_PROTOCOL_ACCESS_KEY_ID=$${S3_PROTOCOL_ACCESS_KEY_ID}
+S3_PROTOCOL_ACCESS_KEY_SECRET=$${S3_PROTOCOL_ACCESS_KEY_SECRET}
+SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
+
+############ Database ############
+POSTGRES_HOST=db
+POSTGRES_DB=postgres
+POSTGRES_PORT=5432
+POSTGRES_PORT_HOST=5433
+
+############ Pooler ############
+POOLER_TENANT_ID=$${POOLER_TENANT_ID}
+POOLER_DEFAULT_POOL_SIZE=20
+POOLER_MAX_CLIENT_CONN=100
+POOLER_POOL_MODE=transaction
+POOLER_PROXY_PORT_TRANSACTION=6543
+POOLER_DB_POOL_SIZE=5
+
+############ API gateway ############
+KONG_HTTP_PORT=8000
+KONG_HTTPS_PORT=8443
+PGRST_DB_SCHEMAS=public,storage,graphql_public
+PGRST_DB_MAX_ROWS=1000
+
+############ URLs ############
+SUPABASE_PUBLIC_URL=${supabase_public_url}
+API_EXTERNAL_URL=${supabase_public_url}
+SITE_URL=${site_url}
+ADDITIONAL_REDIRECT_URLS=${additional_redirect_urls}
+WEB_HTTP_PORT=${web_http_port}
+
+############ Auth ############
+JWT_EXPIRY=3600
+DISABLE_SIGNUP=false
+ENABLE_EMAIL_SIGNUP=true
+ENABLE_EMAIL_AUTOCONFIRM=true
+ENABLE_ANONYMOUS_USERS=false
+ENABLE_PHONE_SIGNUP=false
+ENABLE_PHONE_AUTOCONFIRM=false
+
+############ Mailer (no real SMTP; autoconfirm enabled) ############
+SMTP_ADMIN_EMAIL=admin@example.com
+SMTP_HOST=supabase-mail
+SMTP_PORT=2500
+SMTP_USER=fake_mail_user
+SMTP_PASS=fake_mail_password
+SMTP_SENDER_NAME=RecoverySearch
+MAILER_URLPATHS_INVITE=/auth/v1/verify
+MAILER_URLPATHS_CONFIRMATION=/auth/v1/verify
+MAILER_URLPATHS_RECOVERY=/auth/v1/verify
+MAILER_URLPATHS_EMAIL_CHANGE=/auth/v1/verify
+
+############ Studio ############
+STUDIO_DEFAULT_ORGANIZATION=RecoverySearch
+STUDIO_DEFAULT_PROJECT=RecoverySearch
+STUDIO_PORT=3000
+OPENAI_API_KEY=
+
+############ Functions ############
+FUNCTIONS_VERIFY_JWT=false
+
+############ Storage / imgproxy ############
+STORAGE_BACKEND=file
+GLOBAL_S3_BUCKET=stub
+STORAGE_TENANT_ID=stub
+REGION=local
+IMGPROXY_ENABLE_WEBP_DETECTION=true
+IMGPROXY_AUTO_WEBP=true
+
+############ Misc ############
+DOCKER_SOCKET_LOCATION=/var/run/docker.sock
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# 6. Bring the stack up
+# ---------------------------------------------------------------------------
+compose_up() {
+  cd "$APP_DIR"
+  log "docker compose up (Supabase stack + Next.js app)"
+  docker compose -f docker-compose.yml -f docker-compose.app.yml up -d --build
+}
+
+main() {
+  install_base
+  mount_data_disk
+  clone_repo
+  fetch_with_retry
+  write_env
+  rm -f "$SECRETS_FILE"
+  compose_up
+  log "bootstrap complete $(date -u)"
+}
+
+main

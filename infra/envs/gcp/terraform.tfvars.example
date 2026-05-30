@@ -1,0 +1,31 @@
+# Copy to terraform.tfvars and fill in. Auth via `gcloud auth application-default
+# login` or GOOGLE_APPLICATION_CREDENTIALS.
+
+name_prefix    = "recoverysearch"
+project        = "your-gcp-project-id"
+region         = "us-central1"
+zone           = "us-central1-a"
+instance_size  = "e2-standard-2"
+ssh_public_key = "ssh-ed25519 AAAA... you@host"
+
+ssh_allowed_cidr = "0.0.0.0/0"
+web_allowed_cidr = "0.0.0.0/0"
+
+app_repo_url = "https://github.com/your-org/RecoverySearch.git"
+app_repo_ref = "main"
+
+# ----- Secrets backend: choose one -----
+secrets_backend = "vault" # "vault" | "doppler" | "cloud_native"
+
+# Vault (secrets_backend = "vault").
+vault_address = "https://vault.example.com:8200"
+# vault_token = "hvs...."
+
+# Doppler (secrets_backend = "doppler").
+# doppler_token = "dp.pt...."
+
+# cloud_native uses GCP Secret Manager and needs no extra secret config.
+
+# Optional DNS (existing managed zone).
+# dns_managed_zone = "example-zone"
+# dns_record_name  = "app.example.com."

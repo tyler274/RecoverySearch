@@ -1,0 +1,5 @@
+# Remote state for the GCP environment. Uncomment the `backend "gcs" {}` block
+# in versions.tf, then:
+#   terraform init -backend-config=backend.hcl
+bucket = "recoverysearch-tfstate"
+prefix = "gcp"

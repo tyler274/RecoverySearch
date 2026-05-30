@@ -1,0 +1,29 @@
+# Copy to terraform.tfvars and fill in. AWS credentials come from the standard
+# AWS provider chain (env vars, shared config, or an assumed role).
+
+name_prefix    = "recoverysearch"
+region         = "us-east-1"
+instance_size  = "t3.large"
+ssh_public_key = "ssh-ed25519 AAAA... you@host"
+
+ssh_allowed_cidr = "0.0.0.0/0"
+web_allowed_cidr = "0.0.0.0/0"
+
+app_repo_url = "https://github.com/your-org/RecoverySearch.git"
+app_repo_ref = "main"
+
+# ----- Secrets backend: choose one -----
+secrets_backend = "vault" # "vault" | "doppler" | "cloud_native"
+
+# Vault (secrets_backend = "vault").
+vault_address = "https://vault.example.com:8200"
+# vault_token = "hvs...."
+
+# Doppler (secrets_backend = "doppler").
+# doppler_token = "dp.pt...."
+
+# cloud_native uses AWS Secrets Manager and needs no extra secret config.
+
+# Optional DNS.
+# route53_zone_id = "Z123456ABCDEF"
+# dns_record_name = "app.example.com"
