@@ -41,7 +41,10 @@ const supabase = createClient<Database>(SUPABASE_URL, SERVICE_KEY, {
 const GEOCACHE_PATH = resolve("data/.geocache.json");
 const geocache: Record<string, { lat: number; lng: number } | null> =
   existsSync(GEOCACHE_PATH)
-    ? (JSON.parse(readFileSync(GEOCACHE_PATH, "utf8")) as Record<string, { lat: number; lng: number } | null>)
+    ? (JSON.parse(readFileSync(GEOCACHE_PATH, "utf8")) as Record<
+        string,
+        { lat: number; lng: number } | null
+      >)
     : {};
 
 const sleep = (ms: number) =>
@@ -71,7 +74,9 @@ function str(row: Record<string, string>, key: string): string {
   return row[key].trim();
 }
 
-async function geocode(query: string): Promise<{ lat: number; lng: number } | null> {
+async function geocode(
+  query: string,
+): Promise<{ lat: number; lng: number } | null> {
   if (query in geocache) return geocache[query];
   // Nominatim usage policy: max 1 request/second, descriptive User-Agent.
   await sleep(1100);
@@ -140,7 +145,13 @@ async function main() {
     let lng = row["longitude"] ? Number(row["longitude"]) : null;
 
     if ((lat == null || Number.isNaN(lat)) && row["address"]) {
-      const query = [row["address"], row["city"], row["region"], row["postal_code"], row["country"]]
+      const query = [
+        row["address"],
+        row["city"],
+        row["region"],
+        row["postal_code"],
+        row["country"],
+      ]
         .filter(Boolean)
         .join(", ");
       const geo = await geocode(query);
@@ -190,20 +201,30 @@ async function main() {
       .map((s) => treatmentMap.get(s))
       .filter((v): v is string => Boolean(v));
 
-    await supabase.from("facility_amenities").delete().eq("facility_id", facilityId);
+    await supabase
+      .from("facility_amenities")
+      .delete()
+      .eq("facility_id", facilityId);
     if (amenityIds.length) {
-      await supabase
-        .from("facility_amenities")
-        .insert(amenityIds.map((amenity_id) => ({ facility_id: facilityId, amenity_id })));
+      await supabase.from("facility_amenities").insert(
+        amenityIds.map((amenity_id) => ({
+          facility_id: facilityId,
+          amenity_id,
+        })),
+      );
     }
 
-    await supabase.from("facility_treatments").delete().eq("facility_id", facilityId);
+    await supabase
+      .from("facility_treatments")
+      .delete()
+      .eq("facility_id", facilityId);
     if (treatmentIds.length) {
-      await supabase
-        .from("facility_treatments")
-        .insert(
-          treatmentIds.map((treatment_id) => ({ facility_id: facilityId, treatment_id })),
-        );
+      await supabase.from("facility_treatments").insert(
+        treatmentIds.map((treatment_id) => ({
+          facility_id: facilityId,
+          treatment_id,
+        })),
+      );
     }
 
     const policyRows = splitList(row["policies"] ?? "")
@@ -218,13 +239,18 @@ async function main() {
       })
       .filter((r): r is NonNullable<typeof r> => r !== null);
 
-    await supabase.from("facility_policies").delete().eq("facility_id", facilityId);
+    await supabase
+      .from("facility_policies")
+      .delete()
+      .eq("facility_id", facilityId);
     if (policyRows.length) {
       await supabase.from("facility_policies").insert(policyRows);
     }
 
     const coords =
-      lat !== null ? ` (${lat.toFixed(4)}, ${lng !== null ? lng.toFixed(4) : "?"})` : " (no coords)";
+      lat !== null
+        ? ` (${lat.toFixed(4)}, ${lng !== null ? lng.toFixed(4) : "?"})`
+        : " (no coords)";
     console.log(`  ✓ ${name}${coords}`);
     ok++;
   }

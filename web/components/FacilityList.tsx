@@ -1,11 +1,7 @@
 import type { SearchResult } from "@/lib/types";
 import FacilityCard from "@/components/FacilityCard";
 
-export default function FacilityList({
-  results,
-}: {
-  results: SearchResult[];
-}) {
+export default function FacilityList({ results }: { results: SearchResult[] }) {
   if (results.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">

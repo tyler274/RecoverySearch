@@ -15,14 +15,14 @@ runs on top of the self-hosted Supabase stack in the repository root.
 
 ## Architecture
 
-| Concern | Choice |
-| --- | --- |
-| Framework | Next.js 15 App Router, TypeScript, Tailwind CSS v4 |
-| Data + auth | Supabase (`@supabase/supabase-js`, `@supabase/ssr`), RLS-secured |
-| Migrations / types | Supabase CLI (`supabase/migrations`, `gen types`) |
-| Search | Postgres `search_facilities` RPC over PostGIS |
-| Map | `react-leaflet` + OpenStreetMap tiles (no API key) |
-| Tooling | Nix flake + direnv (Node 22, Supabase CLI, psql) |
+| Concern            | Choice                                                           |
+| ------------------ | ---------------------------------------------------------------- |
+| Framework          | Next.js 15 App Router, TypeScript, Tailwind CSS v4               |
+| Data + auth        | Supabase (`@supabase/supabase-js`, `@supabase/ssr`), RLS-secured |
+| Migrations / types | Supabase CLI (`supabase/migrations`, `gen types`)                |
+| Search             | Postgres `search_facilities` RPC over PostGIS                    |
+| Map                | `react-leaflet` + OpenStreetMap tiles (no API key)               |
+| Tooling            | Nix flake + direnv (Node 22, Supabase CLI, psql)                 |
 
 We use **Supabase's native tooling rather than a separate ORM** (e.g. Prisma):
 PostGIS spatial types/RPCs and RLS are first-class in Supabase but awkward in

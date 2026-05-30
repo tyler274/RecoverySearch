@@ -59,7 +59,10 @@ export default async function AdminFacilitiesPage() {
             ))}
             {(!facilities || facilities.length === 0) && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                <td
+                  colSpan={4}
+                  className="px-4 py-8 text-center text-slate-400"
+                >
                   No facilities yet.{" "}
                   <Link
                     href="/admin/facilities/new"

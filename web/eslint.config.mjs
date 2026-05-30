@@ -3,6 +3,7 @@ import tsParser from "@typescript-eslint/parser";
 import tsPlugin from "@typescript-eslint/eslint-plugin";
 import reactPlugin from "eslint-plugin-react";
 import reactHooksPlugin from "eslint-plugin-react-hooks";
+import prettierConfig from "eslint-config-prettier";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 
@@ -11,7 +12,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default [
   {
     // Auto-generated files — do not lint.
-    ignores: [".next/**", "node_modules/**", "next-env.d.ts", "lib/database.types.ts"],
+    ignores: [
+      ".next/**",
+      "node_modules/**",
+      "next-env.d.ts",
+      "lib/database.types.ts",
+    ],
   },
   {
     files: ["**/*.{ts,tsx}"],
@@ -47,7 +53,10 @@ export default [
       ...reactHooksPlugin.configs.recommended.rules,
 
       // Numbers are always safe to interpolate in template literals.
-      "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
+      "@typescript-eslint/restrict-template-expressions": [
+        "error",
+        { allowNumber: true },
+      ],
       // Next.js handles React imports automatically.
       "react/react-in-jsx-scope": "off",
       // Prop types are replaced by TypeScript.
@@ -67,4 +76,7 @@ export default [
       ...tsPlugin.configs.recommended.rules,
     },
   },
+  // Disable ESLint rules that conflict with Prettier. Must be last so it
+  // overrides formatting rules from the configs above.
+  prettierConfig,
 ];

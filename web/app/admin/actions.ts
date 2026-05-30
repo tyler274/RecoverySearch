@@ -10,7 +10,10 @@ const facilitySchema = z.object({
   slug: z
     .string()
     .min(1)
-    .regex(/^[a-z0-9-]+$/, "Slug may only contain lowercase letters, numbers and dashes"),
+    .regex(
+      /^[a-z0-9-]+$/,
+      "Slug may only contain lowercase letters, numbers and dashes",
+    ),
   description: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   city: z.string().optional().nullable(),
@@ -83,25 +86,40 @@ async function syncRelations(facilityId: string, form: FormData) {
   const treatmentIds = form.getAll("treatments").map(String).filter(Boolean);
 
   // Replace amenity + treatment links.
-  await supabase.from("facility_amenities").delete().eq("facility_id", facilityId);
+  await supabase
+    .from("facility_amenities")
+    .delete()
+    .eq("facility_id", facilityId);
   if (amenityIds.length) {
-    await supabase
-      .from("facility_amenities")
-      .insert(amenityIds.map((amenity_id) => ({ facility_id: facilityId, amenity_id })));
+    await supabase.from("facility_amenities").insert(
+      amenityIds.map((amenity_id) => ({
+        facility_id: facilityId,
+        amenity_id,
+      })),
+    );
   }
 
-  await supabase.from("facility_treatments").delete().eq("facility_id", facilityId);
+  await supabase
+    .from("facility_treatments")
+    .delete()
+    .eq("facility_id", facilityId);
   if (treatmentIds.length) {
-    await supabase
-      .from("facility_treatments")
-      .insert(
-        treatmentIds.map((treatment_id) => ({ facility_id: facilityId, treatment_id })),
-      );
+    await supabase.from("facility_treatments").insert(
+      treatmentIds.map((treatment_id) => ({
+        facility_id: facilityId,
+        treatment_id,
+      })),
+    );
   }
 
   // Policies: fields are policy__<policyTypeId> (value) + note__<policyTypeId>.
-  const { data: policyTypes } = await supabase.from("policy_types").select("id");
-  await supabase.from("facility_policies").delete().eq("facility_id", facilityId);
+  const { data: policyTypes } = await supabase
+    .from("policy_types")
+    .select("id");
+  await supabase
+    .from("facility_policies")
+    .delete()
+    .eq("facility_id", facilityId);
   const rows = (policyTypes ?? [])
     .map((pt) => {
       const value = formStr(form, `policy__${pt.id}`);
@@ -126,7 +144,9 @@ export async function createFacility(form: FormData) {
     .single();
 
   if (error) {
-    redirect(`/admin/facilities/new?error=${encodeURIComponent(error.message)}`);
+    redirect(
+      `/admin/facilities/new?error=${encodeURIComponent(error.message)}`,
+    );
   }
 
   await syncRelations(data.id, form);
@@ -141,9 +161,14 @@ export async function updateFacility(form: FormData) {
   const supabase = await createClient();
   const values = parseFacility(form);
 
-  const { error } = await supabase.from("facilities").update(values).eq("id", id);
+  const { error } = await supabase
+    .from("facilities")
+    .update(values)
+    .eq("id", id);
   if (error) {
-    redirect(`/admin/facilities/${id}?error=${encodeURIComponent(error.message)}`);
+    redirect(
+      `/admin/facilities/${id}?error=${encodeURIComponent(error.message)}`,
+    );
   }
 
   await syncRelations(id, form);

@@ -24,7 +24,12 @@ export default async function FacilityPage({
   if (!detail) notFound();
 
   const { facility, amenities, treatments, policies } = detail;
-  const location = [facility.address, facility.city, facility.region, facility.postal_code]
+  const location = [
+    facility.address,
+    facility.city,
+    facility.region,
+    facility.postal_code,
+  ]
     .filter(Boolean)
     .join(", ");
 

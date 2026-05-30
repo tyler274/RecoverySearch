@@ -29,7 +29,10 @@ interface Props {
   policyTypes: PolicyType[];
   selectedAmenityIds: string[];
   selectedTreatmentIds: string[];
-  policyMap: Record<string, { value: string; notes: string | null } | undefined>;
+  policyMap: Record<
+    string,
+    { value: string; notes: string | null } | undefined
+  >;
   saved?: boolean;
   error?: string;
 }
@@ -143,8 +146,16 @@ export default function FacilityForm({
           <Field label="Address" name="address" defaultValue={f.address} />
           <Field label="City" name="city" defaultValue={f.city} />
           <Field label="State / Region" name="region" defaultValue={f.region} />
-          <Field label="Country" name="country" defaultValue={f.country ?? "USA"} />
-          <Field label="Postal code" name="postal_code" defaultValue={f.postal_code} />
+          <Field
+            label="Country"
+            name="country"
+            defaultValue={f.country ?? "USA"}
+          />
+          <Field
+            label="Postal code"
+            name="postal_code"
+            defaultValue={f.postal_code}
+          />
           <div />
           <Field
             label="Latitude"
@@ -238,7 +249,10 @@ export default function FacilityForm({
       </form>
 
       {isEdit && (
-        <form action={deleteFacility} className="border-t border-slate-200 pt-4">
+        <form
+          action={deleteFacility}
+          className="border-t border-slate-200 pt-4"
+        >
           <input type="hidden" name="id" value={f.id} />
           <button
             type="submit"

@@ -55,7 +55,9 @@ export default function SearchFilters({
           sort: draft.sort === "relevance" ? "distance" : draft.sort,
         });
       },
-      () => { setLocating(false); },
+      () => {
+        setLocating(false);
+      },
       { enableHighAccuracy: false, timeout: 8000 },
     );
   }
@@ -77,7 +79,9 @@ export default function SearchFilters({
         <input
           type="text"
           value={draft.q}
-          onChange={(e) => { setDraft({ ...draft, q: e.target.value }); }}
+          onChange={(e) => {
+            setDraft({ ...draft, q: e.target.value });
+          }}
           placeholder="Name or description"
           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
@@ -91,7 +95,9 @@ export default function SearchFilters({
           <input
             type="text"
             value={draft.city}
-            onChange={(e) => { setDraft({ ...draft, city: e.target.value }); }}
+            onChange={(e) => {
+              setDraft({ ...draft, city: e.target.value });
+            }}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
@@ -102,7 +108,9 @@ export default function SearchFilters({
           <input
             type="text"
             value={draft.region}
-            onChange={(e) => { setDraft({ ...draft, region: e.target.value }); }}
+            onChange={(e) => {
+              setDraft({ ...draft, region: e.target.value });
+            }}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
@@ -117,7 +125,9 @@ export default function SearchFilters({
             <button
               type="button"
               className="text-xs text-rose-600 hover:underline"
-              onClick={() => { apply({ ...draft, lat: null, lng: null, near: "" }); }}
+              onClick={() => {
+                apply({ ...draft, lat: null, lng: null, near: "" });
+              }}
             >
               Clear
             </button>
@@ -143,7 +153,9 @@ export default function SearchFilters({
               min={1}
               max={200}
               value={draft.radiusKm}
-              onChange={(e) => { setDraft({ ...draft, radiusKm: Number(e.target.value) }); }}
+              onChange={(e) => {
+                setDraft({ ...draft, radiusKm: Number(e.target.value) });
+              }}
               className="mt-1 w-full"
             />
           </div>
@@ -154,14 +166,18 @@ export default function SearchFilters({
         title="Treatments"
         options={treatments.map((t) => ({ value: t.slug, label: t.name }))}
         selected={draft.treatments}
-        onToggle={(v) => { setDraft({ ...draft, treatments: toggle(draft.treatments, v) }); }}
+        onToggle={(v) => {
+          setDraft({ ...draft, treatments: toggle(draft.treatments, v) });
+        }}
       />
 
       <FacetGroup
         title="Amenities"
         options={amenities.map((a) => ({ value: a.slug, label: a.name }))}
         selected={draft.amenities}
-        onToggle={(v) => { setDraft({ ...draft, amenities: toggle(draft.amenities, v) }); }}
+        onToggle={(v) => {
+          setDraft({ ...draft, amenities: toggle(draft.amenities, v) });
+        }}
       />
 
       <FacetGroup
@@ -170,7 +186,9 @@ export default function SearchFilters({
           .filter((p) => p.value_type !== "text")
           .map((p) => ({ value: p.key, label: p.label }))}
         selected={draft.policies}
-        onToggle={(v) => { setDraft({ ...draft, policies: toggle(draft.policies, v) }); }}
+        onToggle={(v) => {
+          setDraft({ ...draft, policies: toggle(draft.policies, v) });
+        }}
       />
 
       <div>
@@ -179,7 +197,9 @@ export default function SearchFilters({
         </label>
         <select
           value={draft.sort}
-          onChange={(e) => { setDraft({ ...draft, sort: e.target.value as SortOption }); }}
+          onChange={(e) => {
+            setDraft({ ...draft, sort: e.target.value as SortOption });
+          }}
           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="relevance">Relevance</option>
@@ -199,7 +219,9 @@ export default function SearchFilters({
         </button>
         <button
           type="button"
-          onClick={() => { apply({} as SearchState); }}
+          onClick={() => {
+            apply({} as SearchState);
+          }}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
         >
           Clear
@@ -235,7 +257,9 @@ function FacetGroup({
             <input
               type="checkbox"
               checked={selected.includes(opt.value)}
-              onChange={() => { onToggle(opt.value); }}
+              onChange={() => {
+                onToggle(opt.value);
+              }}
               className="h-4 w-4 rounded border-slate-300 text-teal-600"
             />
             {opt.label}
